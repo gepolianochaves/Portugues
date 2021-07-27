@@ -1,0 +1,226 @@
+---
+title: "Caderno Computacional 4|6: Mesclagem de Arquivos VCF e Frequência Alélica de Polimorfismos de SARS-CoV-2"
+author: "Gepoliano Chaves, Ph. D."
+date: "April 7th, 2021"
+#output: revealjs::revealjs_presentation
+#output: html_notebook
+#output: beamer_presentation
+#output: github_document
+#output: html_vignette
+#output: ioslides_presentation
+output: slidy_presentation 
+#output: tufte::tufte_book
+---
+
+# Transfer Files
+
+```{bash, eval = F}
+cp ~/Desktop/Gepoliano/SIP2020/Code/temp_file.txt ~/Desktop/Gepoliano/ReComBio/Portugues/Pipeline_Tabela_Incidencia
+```
+
+
+# 3) Heatmap e Agrupamento Hierarquico (Hierarchical Clustering)
+
+## 3.2) Plotagem de Heatmap
+
+### 3.2.1) Carregar dados de frequencia de polimorfismos
+
+Vamos inicialmente, visualizar a tabela construida a partir da genotipagem de SARS-CoV-2 presente nos arquivos VCF. A genotipagem foi feita por meio da identificacao das SNPs nos diversos arquivos VCF. Uma vez que consigo contar em quantos arquivos VCF ha determinado SNP de interesse, consigo fazer uma mensuracao da frequencia desse SNP entre todos os arquivos VCF que analisei. A visualizacao abaixo eh feita usando-se o Linux (Bash).
+
+
+A Tabela para Heatmap contém os valores das frequências das SNPs identificadas em SARS-CoV-2 em diferentes locais do mundo e pode ser construída usando a extração do genótipo SNP mostrada na etapa 3.
+
+```{r , eval = T}
+library("pheatmap")
+library("RColorBrewer")
+setwd("~/Desktop/Gepoliano/SIP2020/Code")
+
+heatmap_table <- read.table("./temp_file.txt", row.names = 1, header = TRUE, sep = "\t")
+heatmap_table = as.matrix(heatmap_table)
+```
+
+### 3.2.2) Plotagem Tabela Frequência Alélica Sem Normalização
+
+Note que ao plotar o heatmap com os valores das frequencias "crus", ou, sem nenhuma normalizacao, nao observamos as frequencias das SNPs agrupando as sequencias de morcegos e pangolins, como seria esperado, considerando-as sequencias do Extremo Oriente. Como verao abaixo, a normalizacao permite que consigamos visualizar o agrupamento das sequencias de morcegos, pangolins e de virus isolados na
+
+```{r heatmap1,eval=T}
+library("pheatmap")
+library("RColorBrewer")
+#setwd("~/Desktop/Gepoliano/SIP2020/Code")
+
+heatmap_table <- read.table("./temp_file.txt", row.names = 1, header = TRUE, sep = "\t")
+heatmap_table = as.matrix(heatmap_table)
+
+# Escolher a cor do heatmap
+col.pal <- brewer.pal(9,"Blues")
+
+# Definir o tipo de correlacao entre as amostras (colunas) e os genes (linhas)
+drows1 <- "euclidean"
+dcols1 <- "euclidean"
+
+#Plotar o heatmap, com as diversas opcoes determinadas
+hm.parameters <- list(heatmap_table, 
+                      color = col.pal,
+                      cellwidth = 14, cellheight = 15, scale = "none",
+                      treeheight_row = 200,
+                      kmeans_k = NA,
+                      show_rownames = T, show_colnames = T,
+                      #main = "Full heatmap (avg, eucl, unsc)",
+                      main = "Frequencies of SNP Variants of SARS-CoV-2",
+                      clustering_method = "average",
+                      cluster_rows = F, cluster_cols = T,
+                      clustering_distance_rows = drows1, 
+                      fontsize_row = 10,
+                      fontsize_col = 10,
+                      clustering_distance_cols = dcols1)
+do.call("pheatmap", hm.parameters)
+```
+
+
+
+### 3.2.3) Plotagem Tabela Frequência Alélica Com Normalização
+
+A visualizacao do Heatmap pode ser normalizada utilisando-se a escala logaritmica. Tirar o logaritmo da representacao da expressao genica eh um procedimento padrao, pois ajuda a homogeneizar a variancia nas frequencias e reduzir a dimensionalidade na variancia na visializacao do heatmap. Devido a minha experiencia na visualizacao de expressao genica usando Heatmaps, decidi implementar tambem a normalizacao das frequencias alelicas dos genotipos identificados de SARS-CoV-2 neste projeto.
+
+
+```{r heatmap2, eval= T}
+library("pheatmap")
+library("RColorBrewer")
+
+heatmap_table <- read.table("./temp_file.txt", row.names = 1, header = TRUE, sep = "\t")
+heatmap_table = as.matrix(heatmap_table)
+
+log_table_09_18_2020 = log (heatmap_table + 1)
+
+# Escolher a cor do heatmap
+col.pal <- brewer.pal(9,"Blues")
+
+# Definir o tipo de correlacao entre as amostras (colunas) e os genes (linhas)
+drows1 <- "euclidean"
+dcols1 <- "euclidean"
+
+#Plotar o heatmap, com as diversas opcoes determinadas
+hm.parameters <- list(log_table_09_18_2020, 
+                      color = col.pal,
+                      cellwidth = 14, cellheight = 15, scale = "none",
+                      treeheight_row = 200,
+                      kmeans_k = NA,
+                      show_rownames = T, show_colnames = T,
+                      #main = "Full heatmap (avg, eucl, unsc)",
+                      main = "Frequencies of SNP Variants of SARS-CoV-2",
+                      clustering_method = "average",
+                      cluster_rows = F, cluster_cols = T,
+                      clustering_distance_rows = drows1, 
+                      fontsize_row = 10,
+                      fontsize_col = 10,
+                      clustering_distance_cols = dcols1)
+do.call("pheatmap", hm.parameters)
+
+```
+
+# 4) Visualização de Filogenias usando R
+
+Nesta seção, usamos a aba "phylo" do projeto VCF-kit, a qual inclui instruções de como usar este pacote, para tentar visualizar as relações de variação entre sequências de SARS-CoV-2 diretamente a partir dos arquivos VCF. Para usar este programa, precisamos de um tipo especial de arquivo chamado Newick. Necessitamos então, transformar arquivos VCF, em Newick. Abaixo a plotagem é testada usando um arquivo Newick, o arquivo treefile.newick.
+
+https://vcf-kit.readthedocs.io/en/latest/phylo/
+
+## 4.1) Instalação de Pacotes
+
+Para instalação de livrarias, o erro *R version 3.5 or greater, install Bioconductor packages using BiocManager*
+
+aponta para a necessidade de utilização de BiocManager. Um exemplo do comando para instalação de BiocManager é a linha presente em minhas análises GSEA:
+
+BiocManager::install("clusterProfiler", version = "3.8")
+
+Com a linha abaixo, podemos determinar a versão do software que queremos usar.
+
+```{r, eval = F}
+install.packages("tidyverse")
+BiocManager::install(c('ape','phyloseq','ggmap'), suppressUpdates = TRUE)
+
+```
+
+## 4.2) Visualização do Arquivo Newick teste
+
+Nesta parte, usamos o arquivo em formato newick. No caso abaixo, o arquivo pode ser encontrado no seguinte link: http://etetoolkit.org/treeview/ .
+
+```{r Newick, warning=F, message=F, eval = F}
+library(tidyverse)
+library(ape)
+library("ggmap")
+library(phyloseq)
+
+tree <- ape::read.tree(paste0("./treefile.newick"))
+
+# Optionally set an outgroup.
+# tree <- root(tree,outgroup = "outgroup", resolve.root = T)
+
+treeSegs <- phyloseq::tree_layout(
+                                phyloseq::phy_tree(tree),
+                                ladderize = T
+                                )
+
+treeSegs$edgeDT <- treeSegs$edgeDT  %>% 
+                   dplyr::mutate(edge.length = 
+                                    ifelse(edge.length < 0, 0, edge.length)
+                                 , xright = xleft + edge.length
+                                 )
+edgeMap = aes(x = xleft, xend = xright, y = y, yend = y)
+vertMap = aes(x = x, xend = x, y = vmin, yend = vmax)
+labelMap <- aes(x = xright+0.0001, y = y, label = OTU)
+
+ggplot(data = treeSegs$edgeDT) + geom_segment(edgeMap) + 
+  geom_segment(vertMap, data = treeSegs$vertDT) +
+  geom_text(labelMap, data = dplyr::filter(treeSegs$edgeDT, !is.na(OTU)), na.rm = TRUE, hjust = -0.05) +
+  ggmap::theme_nothing() + 
+  scale_x_continuous(limits = c(
+    min(treeSegs$edgeDT$xleft)-0.15,
+    max(treeSegs$edgeDT$xright)+0.15
+  ),
+  expand = c(0,0))
+```
+
+# 5) visualização de Dendograma
+
+```{r}
+#Create random data
+data <- replicate(20, rnorm(50))
+rownames(data) <- paste("Gene", c(1:nrow(data)))
+colnames(data) <- paste("Sample", c(1:ncol(data)))
+
+out <- pheatmap(data, 
+      show_rownames=T, cluster_cols=T, cluster_rows=T, scale="row",
+      cex=1, clustering_distance_rows="euclidean", cex=1,
+      clustering_distance_cols="euclidean", clustering_method="complete", border_color=FALSE)
+
+out <- pheatmap(log_table_09_18_2020, 
+      show_rownames=T, cluster_cols=T, cluster_rows=T, scale="row",
+      cex=1, clustering_distance_rows="euclidean", cex=1,
+      clustering_distance_cols="euclidean", clustering_method="complete", border_color=FALSE)
+```
+
+# Reorder original data
+
+```{r}
+#Re-order original data (genes) to match ordering in heatmap (top-to-bottom)
+rownames(data[out$tree_row[["order"]],])
+
+#Re-order original data (samples) to match ordering in heatmap (left-to-right)
+#colnames(data[,out$tree_col[["order"]]])
+
+```
+
+# 'cut' your row dendrogram into a pre-selected number of groups as follows:
+
+```{r}
+#2 groups
+sort(cutree(out$tree_row, k=2))
+```
+
+# Plot Cluster Dendogram
+
+```{r}
+plot(out$tree_col)
+abline(h=7, col="red", lty=2, lwd=2)
+```
+
