@@ -1,0 +1,133 @@
+---
+title: "A Web Application for Visualization of SARS-CoV-2 Mutations"
+author: "Gepoliano Chaves, (Ph. D.), Esther Camilo (Ph. D.), Jaime Amorim (Ph. D.)"
+date: "July 29th, 2021"
+#output: pdf_document
+#output: revealjs::revealjs_presentation
+#output: html_notebook
+#output: beamer_presentation
+#output: github_document
+#output: html_vignette
+#output: ioslides_presentation
+output: slidy_presentation 
+#output: tufte::tufte_book
+runtime: shiny
+---
+
+# Comments
+
+execute o comando abaixo para encontrar as bibliotecas
+options(repos = BiocManager::repositories())
+
+# 1) Load Libraries
+
+```{r}
+library(shiny)
+library(shinythemes)
+library(shiny.i18n)
+i18n <- Translator$new(automatic = TRUE)
+i18n$set_translation_language("pt")
+
+library(msa)
+library(ape)
+library(seqinr)
+
+
+#library(adegenet)
+#library(ggtree)
+#library(ggplot2)
+#library(stats)
+#library(ips)
+```
+
+# 2) Define Mutations Table to be Loaded by User
+
+```{r}
+getdfmutations<- function(fastafile) {
+
+   sequences <- readAAStringSet(fastafile)
+   sarsAln <- msa(sequences)
+   conMat <- consensusMatrix(sarsAln)
+   subset <- conMat[, 1:240]
+   
+   return(subset)
+   
+ }
+
+
+ plottree <- function(fastafile) {
+   
+   
+ }
+
+```
+
+# 3) Define User Interface, including the layout
+
+```{r}
+ui <- fluidPage(theme = shinytheme("cerulean"),
+                navbarPage(
+                  theme = "cerulean",  # <--- To use a theme, uncomment this
+                  "Visualizações de análises filogenéticas a partir dos genomas de Sars-Cov-2",
+                  tabPanel("Frequência das Mutações",
+                           sidebarPanel(
+                             fileInput("fastafile", "Escolha o arquivo fasta",
+                                       multiple = TRUE,
+                                       accept = c(".fasta", ".fa")),
+                             # Horizontal line ----
+                             tags$hr(),
+                             #actionButton("button_covid", "Dados covid")
+                           ), # sidebarPanel
+                           mainPanel(
+                             h4("Tabela de frequências"),
+                             tableOutput("contents")
+                           ) # mainPanel
+                           
+                  ), # Navbar 1, tabPanel
+                  tabPanel("Árvores filogenéticas", 
+                           mainPanel(
+                             imageOutput("contents2")
+                           ) #
+                           )
+                ) # navbarPage
+) # fluidPage
+```
+
+# 4) Define server function  
+
+```{r}
+server <- function(input, output) {
+  
+    output$contents <- renderTable({
+     req(input$fastafile)
+     sequences <- readAAStringSet(input$fastafile$datapath)
+     sarsAln <- msa(sequences)
+     conMat <- consensusMatrix(sarsAln)
+     df <- conMat[, 1:10]
+    return(df)})
+    
+    output$contents2 <- renderPlot(height=2000, {
+      req(input$fastafile)
+      sequences <- readAAStringSet(input$fastafile$datapath)
+      sarsAln <- msa(sequences)
+      sarsAln2 <- msaConvert(sarsAln, type="seqinr::alignment")
+      d <- dist.alignment(sarsAln2, "identity")
+      sarsTree <- nj(d)
+      g <- plot(sarsTree, main="Phylogenetic Tree of Sars-Cov-2")
+      return(g)
+    })
+    
+    
+} # server
+```
+
+# 5) Create Shiny Object: the output
+
+```{r}
+shinyApp(ui = ui, server = server)
+```
+
+
+#rsconnect::deployApp('/mnt/D/PycharmProjects/local_educaimuno/educaimuno/educaimunobr')
+#https://github.com/MSQ-123/CovidMutations
+
