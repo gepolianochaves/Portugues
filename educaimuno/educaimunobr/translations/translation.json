@@ -1,0 +1,16 @@
+{
+   "languages":[
+      "en",
+      "pt"
+   ],
+   "translation":[
+      {
+         "en":"SEARCH",
+         "pt":"BUSCAR"
+      },
+      {
+         "en":"Search",
+         "pt":"Buscar"
+      }
+   ]
+}
