@@ -1,0 +1,195 @@
+---
+title: "Dashboard Reclamações Clientes por UF Brasil"
+author: "Gepoliano Chaves, Ph. D."
+date: "January 5th, 2022"
+#output: revealjs::revealjs_presentation
+#output: html_notebook
+#output: beamer_presentation
+#output: github_document
+#output: html_vignette
+#output: ioslides_presentation
+output: slidy_presentation
+#output: pdf_document 
+#output: bookdown::epub_book
+#output: bookdown::gitbook
+#output: bookdown::html_book
+#output: bookdown::tufte_html_book
+#output: bookdown::pdf_book
+#output: tufte::tufte_book 
+---
+
+# Load Libraries
+
+```{r}
+library('data.table')
+library('dplyr')
+library('ggplot2')
+library('plotly')
+library('shiny')
+library('shinyWidgets')
+library('shinydashboard')
+```
+
+```{r}
+setwd("~/Desktop/Gepoliano/alura-cursos/dashboard_com_r/dashboard_com_r-dados/") 
+
+library(data.table)
+library(dplyr)
+
+dados <- fread('~/Desktop/Gepoliano/alura-cursos/dashboard_com_r/dashboard_com_r-dados/reclamacao.csv', encoding = 'UTF-8')
+
+summary(dados)
+
+reclamacao <- dados %>%
+  select(-X.1,-V1)
+
+unique(reclamacao$regiao)
+
+## Salvar execucao dentro da base reclamacao
+reclamacao <- reclamacao %>% 
+  filter(regiao != 'N/D')
+
+unique(reclamacao$Atendida)
+
+reclamacao$Atendida <- gsub(pattern = 'S|Siim',
+     replacement = 'sim', x = reclamacao$Atendida)
+
+reclamacao$Atendida <- gsub(pattern = 'N|nAoo|nao',
+     replacement = 'não', x = reclamacao$Atendida)
+
+unique(reclamacao$Atendida)
+
+reclamacao <- reclamacao %>%
+  filter(Atendida != '')
+
+## Agora apenas temos os valores sim e nao.
+unique(reclamacao$Atendida)
+
+unique(reclamacao$SexoConsumidor)
+
+reclamacao$SexoConsumidor <- gsub(pattern = 'N|NULL',
+     replacement = 'N/I', x = reclamacao$SexoConsumidor)
+
+unique(reclamacao$SexoConsumidor)
+
+fwrite(reclamacao, 'dados_limpos_geo.csv', row.names = F)
+```
+
+# 1) Graficos ggplot2
+
+Demanda 1 do cliente: Informações sobre quantidade de reclamacoes atendidas e nao atendidas armazenadas na base de dados reclamacoes.
+
+```{r}
+library('plotly')
+library(ggplot2)
+
+class(reclamacao)
+reclamacao <- as.data.frame(reclamacao)
+class(reclamacao)
+
+reclamacao$Atendida <- as.factor(reclamacao$Atendida)
+
+# Esse bloco nao funcionou em minha versao do R, sem especificar a variavel x na funcao aes.
+# grafico_atendida <- ggplot(reclamacao) +
+#                     geom_bar(aes(Atendida), 
+#                              fill=reclamacao$Atendida, 
+#                              stat = 'count') +
+#                     ylab("Quantidade") +
+#                     theme_bw() +
+#                     title("Quantidade de Chamados Atendidos")
+
+grafico_atendida <- ggplot(reclamacao)+
+  geom_bar(aes(x=Atendida), fill=c("red", "green"), stat = "count")+
+  ylab("Quantidade")+
+  theme_bw()+
+  ggtitle("Quantidade de Chamados Atendidos")
+
+grafico_atendida <- ggplotly(grafico_atendida)
+# Por que a execucao do chunk nao possibilita plotagem automatica do grafico como no chunk abaixo?
+grafico_atendida
+```
+
+# 2) Quantidade de Reclamacoes por UF
+
+Demanda 2 do cliente:  (Informacao com base na UF) Tabela de frequencia de reclamacoes com base na coluna UF
+
+```{r}
+# a funcao table gera as colunas Var1 e Freq, porem nao sao auto-explicativas.
+grafico_uf <- data.frame(table(reclamacao$UF)) %>%
+  rename(UF=Var1, Qtd=Freq) %>% ## Este concatenador passa o output para ggplot2
+  ggplot(aes(x = reorder(UF, Qtd), y = Qtd, text=paste("Estado: ", UF, "<br>", "Quantidade de Reclamações: ", Qtd))) + # UF eh valor dinamico da BD
+  geom_bar(fill="blue", stat = "identity") + # stat eh identity pois valores estao sendo passados para coluna y.
+  coord_flip()+
+  xlab("UF")+
+  theme_bw()+
+  ggtitle("Quantidade de Reclamações por UF")
+
+ggplotly(grafico_uf, tooltip = "text")
+```
+
+# 3) Quantidade de Reclamacoes por Data
+
+Demanda 3 do cliente: Quantidade de reclamacoes por data
+
+```{r}
+# ANO-MES-DIA
+##########____________________________________________##########
+########## ____ Visualizacao tumultuada dos dados ____##########
+
+# data.frame(table(as.Date(reclamacao$DataArquivamento))) %>%
+#   rename(Data=Var1, Qtd=Freq) %>%
+#   ggplot(aes(Data, Qtd))+
+#   geom_line(group=1) ## Grupo que liga linhas
+
+##########____________________________________________##########
+########## ____ Visualizacao tumultuada dos dados ____##########
+
+grafico_data <- data.frame(table(as.Date(reclamacao$DataArquivamento))) %>%
+  rename(Data=Var1, Qtd=Freq) %>%
+  ggplot(aes(as.Date(Data), Qtd))+
+  geom_line(group=1) +## Grupo que liga linhas
+  theme_bw()+
+  ggtitle("Quantidade de Reclamações por ano-mês")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_x_date(date_labels = "%b-%Y", breaks = "6 month")+
+  xlab("Data")
+
+grafico_data <- ggplotly(grafico_data)
+grafico_data
+```
+
+# 4) reclamacoes por ano
+
+Demanda 4 do cliente: Elaborar um grafico com tres variaveis: quantidade, ano e se reclamacao foi atendida ou nao
+
+Grafico de colunas com legendas
+
+
+```{r}
+# grafico_atendida_ano <- 
+# data.frame(table(reclamacao$anocalendario, reclamacao$Atendida)) %>%
+#   rename(Ano=Var1, Atendida=Var2, Qtd=Freq) + ## Este nao eh o concatenados do dplyr
+#   ggplot()+
+#   geom_bar(aes(x=Ano, y=Qtd), fill=Atendida, stat = "identity", 
+#            position = position_dodge2()) ## Posicao das barras gerada pela funcao position_dodge2
+#             +ggtitle("Quantidade de Reclamacoes atendidas () por ano")
+
+##########____________________________________________##########
+########## _________ Concatenador Apropriado _________##########
+
+grafico_atendida_ano <- data.frame(table(reclamacao$anocalendario,
+                                         reclamacao$Atendida)) %>%
+  rename(Ano=Var1, Atendida=Var2, Qtd=Freq) %>%
+  ggplot() +
+  geom_bar(aes(x=Ano,y=Qtd, fill=Atendida), stat = "identity",
+           position = position_dodge2()) +
+  theme_bw()+
+  ggtitle("Quantidade de Reclamações atendidas (ou não) por ano")
+
+grafico_atendida_ano 
+
+# Inserir interatividade
+grafico_atendida_ano <- ggplotly(grafico_atendida_ano)
+grafico_atendida_ano
+```
+
